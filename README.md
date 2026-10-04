@@ -4,8 +4,10 @@
 events on it, a bar that tells you what is coming before it starts, and a
 form to create or edit events without opening Google.
 
-Not a Google user? It reads a plain JSON file, so khal, vdirsyncer, Nextcloud
-or an ICS feed work just as well. See [Use another source](#use-another-source).
+Not a Google user? The sync reads any iCal feed, see
+[Sync from the secret iCal address](#sync-from-the-secret-ical-address). The
+widget itself reads a plain JSON file, so khal, vdirsyncer or Nextcloud work
+just as well. See [Use another source](#use-another-source).
 
 ![Preview](preview.png)
 
@@ -39,15 +41,16 @@ time away for an event title would be a downgrade you pay for all day.
 - Everything the built-in Omarchy clock does: label formats, right click to
   cycle them, the year and life progress bars if you want them back
 - Theme aware, light themes included, because it is a fork of the built-in clock
-- No Google Cloud project needed if you read your calendars through
-  Evolution Data Server (community-maintained), or any other source that
-  writes the events file
+- No Google Cloud project needed if you read your calendars from their secret
+  iCal address (read only), through Evolution Data Server
+  (community-maintained), or from any other source that writes the events file
 
 ## Requirements
 
 Omarchy 4 with Quickshell. Google Calendar is optional, see
 [Use another source](#use-another-source). A Google Cloud project is optional
-too, see [Sync without a Google Cloud project](#sync-without-a-google-cloud-project).
+too, see [Sync from the secret iCal address](#sync-from-the-secret-ical-address)
+or [Sync without a Google Cloud project](#sync-without-a-google-cloud-project).
 
 ## Install
 
@@ -88,6 +91,11 @@ below, or point any other source at the file. The widget says as much when you
 open it, with the command to run.
 
 ## Sync your Google Calendar
+
+> **Only need to read your calendar?** `setup --ics` skips Google Cloud and
+> reads your calendar's secret iCal address instead. You cannot edit events
+> from the panel that way. See
+> [Sync from the secret iCal address](#sync-from-the-secret-ical-address).
 
 ```bash
 ~/.config/omarchy/plugins/tmn73.calendar/sync/setup
