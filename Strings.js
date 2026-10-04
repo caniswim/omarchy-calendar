@@ -272,8 +272,8 @@ var STRINGS = {
     "error.commandFailed": "The event command failed: %1",
     "error.noOutput": "no output",
 
-    "sync.copied": "Copied. Paste it in a terminal:\n%1",
-    "sync.missingPanel": "No calendar synced yet. Click to copy, then run:\n%1",
+    "sync.copied": "Copied. Paste it in a terminal:\n%1\n\nTo skip Google Cloud (read only), add --ics",
+    "sync.missingPanel": "No calendar synced yet. Click to copy, then run:\n%1\n\nTo skip Google Cloud (read only), add --ics",
     "sync.versionPanel": "Events file was written by a newer version. Update the plugin.",
     "sync.stalePanel": "Calendar may be out of date. Check journalctl --user -u omarchy-calendar-sync",
 
@@ -307,7 +307,7 @@ var STRINGS = {
     "settings.never": "Never",
     "settings.minutes": "%1 min",
     "settings.sync": "Sync",
-    "settings.syncMissing": "No calendar connected yet. Click to copy, then run:\n%1",
+    "settings.syncMissing": "No calendar connected yet. Click to copy, then run:\n%1\n\nTo skip Google Cloud (read only), add --ics",
     "settings.syncVersion": "The events file was written by a newer version of this plugin.",
     "settings.syncEvents.one": "%1 event from %2",
     "settings.syncEvents.other": "%1 events from %2",
@@ -575,8 +575,8 @@ var STRINGS = {
     "error.commandFailed": "O comando de eventos falhou: %1",
     "error.noOutput": "sem saída",
 
-    "sync.copied": "Copiado. Cole em um terminal:\n%1",
-    "sync.missingPanel": "Nenhuma agenda sincronizada ainda. Clique para copiar e depois execute:\n%1",
+    "sync.copied": "Copiado. Cole em um terminal:\n%1\n\nPara dispensar o Google Cloud (só leitura), adicione --ics",
+    "sync.missingPanel": "Nenhuma agenda sincronizada ainda. Clique para copiar e depois execute:\n%1\n\nPara dispensar o Google Cloud (só leitura), adicione --ics",
     "sync.versionPanel": "O arquivo de eventos foi gravado por uma versão mais nova. Atualize o plugin.",
     "sync.stalePanel": "A agenda pode estar desatualizada. Verifique journalctl --user -u omarchy-calendar-sync",
 
@@ -608,7 +608,7 @@ var STRINGS = {
     "settings.barLabelHint": "Com quanta antecedência a barra troca o relógio pelo próximo compromisso.",
     "settings.never": "Nunca",
     "settings.sync": "Sincronização",
-    "settings.syncMissing": "Nenhuma agenda conectada ainda. Clique para copiar e depois execute:\n%1",
+    "settings.syncMissing": "Nenhuma agenda conectada ainda. Clique para copiar e depois execute:\n%1\n\nPara dispensar o Google Cloud (só leitura), adicione --ics",
     "settings.syncVersion": "O arquivo de eventos foi gravado por uma versão mais nova deste plugin.",
     "settings.syncEvents.one": "%1 evento de %2",
     "settings.syncEvents.other": "%1 eventos de %2",

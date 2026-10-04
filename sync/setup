@@ -14,7 +14,8 @@ set -euo pipefail
 # asking, for a script or a second run.
 #
 # --ics skips Google Cloud entirely: it asks for your calendar's secret iCal
-# address and reads that instead. Read only.
+# address and reads that instead. Read only. Run setup again without --ics to
+# go back to the Google Cloud sync.
 WRITE=0
 ICS=0
 for arg in "$@"; do
@@ -110,10 +111,16 @@ EOF
   read -r -p "  Your email address (marks declined invitations, optional): " identity || true
 
   mkdir -p "$(dirname "$CONFIG")"
-  python3 - "$CONFIG" "$identity" "${urls[@]}" <<'PYEOF'
+  # The new config replaces the current one only after a test sync passes.
+  # A wrong address must not break a setup that works today.
+  local candidate
+  candidate=$(mktemp "$CONFIG.XXXXXX")
+  trap 'rm -f "$candidate"' EXIT
+  python3 - "$CONFIG" "$candidate" "$identity" "${urls[@]}" <<'PYEOF'
 import json, os, pathlib, sys
 
-path, identity, urls = pathlib.Path(sys.argv[1]), sys.argv[2].strip(), sys.argv[3:]
+path, candidate = pathlib.Path(sys.argv[1]), sys.argv[2]
+identity, urls = sys.argv[3].strip(), sys.argv[4:]
 config = {}
 if path.exists():
     try:
@@ -126,15 +133,19 @@ config["write"] = False
 if identity:
     config["identity"] = identity
 # The file now holds the secret addresses.
-fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+fd = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, "w") as stream:
     stream.write(json.dumps(config, indent=2) + "\n")
-os.chmod(path, 0o600)
-print("  backend set to ics with", len(urls), "feed(s) in", path)
+os.chmod(candidate, 0o600)
 PYEOF
 
   step "Testing the feeds"
-  "$SYNC_BIN" || { echo "  The sync failed, see above."; exit 1; }
+  "$SYNC_BIN" --config "$candidate" || {
+    echo "  The sync failed, see above. $CONFIG is unchanged."
+    exit 1
+  }
+  mv -f "$candidate" "$CONFIG"
+  echo "  backend set to ics with ${#urls[@]} feed(s) in $CONFIG"
 
   install_timer_and_sync
   exit 0
@@ -468,10 +479,14 @@ if path.exists():
         config = json.loads(path.read_text())
     except ValueError:
         config = {}
+# This flow sets up the Google Cloud sync, so it must also select it.
+# Without this line, a config left by setup --ics keeps reading the feeds.
+config["backend"] = "gws"
 config["gwsPath"] = gws_path
 config["profile"] = profile
 config["write"] = write
 path.write_text(json.dumps(config, indent=2) + "\n")
+print("  backend set to gws")
 print("  gwsPath set to", gws_path)
 print("  profile set to", profile)
 print("  write set to", write)
