@@ -513,11 +513,11 @@ test('timeOptions passes each value through the format function', () => {
   assert.equal(Model.timeOptions(-1, twelve, false)[52].label, '1:00 PM')
 })
 
-test('durationLabel reads like Google', () => {
-  assert.equal(Model.durationLabel(15), '15 min')
-  assert.equal(Model.durationLabel(60), '1 h')
-  assert.equal(Model.durationLabel(90), '1 h 30')
-  assert.equal(Model.durationLabel(1440), '24 h')
+test('timeOptions words end-menu durations in the given language, English by default', () => {
+  assert.equal(Model.timeOptions(10 * 60, HHMM, true)[5].label, '11:30 (1 h 30 min)')
+  assert.equal(Model.timeOptions(10 * 60, HHMM, true, 'pt')[5].label, '11:30 (1 h 30 min)')
+  assert.equal(Model.timeOptions(10 * 60, HHMM, true, 'pt')[0].label, '10:15 (15 min)')
+  assert.equal(Model.timeOptions(0, HHMM, true, 'en').pop().label, '00:00 (24 h)')
 })
 
 test('nthWeekday counts from the start, or -1 in the last seven days', () => {

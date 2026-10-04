@@ -110,3 +110,25 @@ test('barLabel says at least 1 min while the start is still ahead', () => {
   const state = Model.barState(EVENTS, START - 10 * 1000, 30)
   assert.equal(Model.barLabel(state, 'en'), 'Revisão do projeto in 1 min')
 })
+
+test('meetingToJoin prefers the announced meeting when it has a link', () => {
+  const announced = meeting('later', 15, 0)
+  assert.equal(Model.meetingToJoin([meeting('now', 12, 30, { end: localIso(2026, 9, 6, 13, 15) })], START, announced), announced)
+})
+
+test('meetingToJoin falls back to the latest meeting under way, then the next one today', () => {
+  const early = meeting('early', 12, 0, { end: localIso(2026, 9, 6, 13, 30) })
+  const late = meeting('late', 12, 45, { end: localIso(2026, 9, 6, 13, 30) })
+  const next = meeting('next', 15, 0)
+  const sooner = meeting('sooner', 14, 0)
+  const noLink = meeting('noLink', 13, 0, { meetingUrl: '' })
+  assert.equal(Model.meetingToJoin([early, late, next], START, null).id, 'late')
+  assert.equal(Model.meetingToJoin([next, sooner, noLink], START, noLink).id, 'sooner')
+})
+
+test('meetingToJoin skips all-day rows, tomorrow and linkless events', () => {
+  const tomorrow = { ...meeting('tomorrow', 9, 0), start: localIso(2026, 9, 7, 9, 0), end: localIso(2026, 9, 7, 10, 0) }
+  const allDay = { id: 'a', allDay: true, start: '2026-10-06', end: '2026-10-07', meetingUrl: 'https://meet.google.com/x' }
+  assert.equal(Model.meetingToJoin([tomorrow, allDay, meeting('x', 15, 0, { meetingUrl: '' })], START, null), null)
+  assert.equal(Model.meetingToJoin(null, START, null), null)
+})

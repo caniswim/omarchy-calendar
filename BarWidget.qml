@@ -88,29 +88,8 @@ BarWidget {
     return Qt.formatDateTime(date, configuredFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
   }
 
-  // The meeting a middle click means: the one the bar is announcing, else
-  // one under way (the latest to start), else the next one today.
-  function joinTarget() {
-    if (barState.event && Model.meetingUrlFor(barState.event)) return barState.event
-    var now = Date.now()
-    var todayKey = Model.keyForMs(now)
-    var current = null
-    var next = null
-    for (var i = 0; i < visibleEvents.length; i++) {
-      var event = visibleEvents[i]
-      if (event.allDay || !Model.meetingUrlFor(event)) continue
-      var range = Model.timeRange(event)
-      if (range.start <= now && now < range.end) {
-        if (!current || range.start > Model.timeRange(current).start) current = event
-      } else if (range.start > now && Model.keyForMs(range.start) === todayKey) {
-        if (!next || range.start < Model.timeRange(next).start) next = event
-      }
-    }
-    return current || next
-  }
-
   function join(event) {
-    var url = Model.meetingUrlFor(event || joinTarget())
+    var url = Model.meetingUrlFor(event || Model.meetingToJoin(visibleEvents, Date.now(), barState.event))
     if (url) Qt.openUrlExternally(url)
     else reminders.notice(Strings.tr(language, "toast.noMeeting"))
   }

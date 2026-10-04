@@ -49,13 +49,38 @@ test('parseQuickAdd: today, tomorrow, the day after, with and without accents', 
 test('parseQuickAdd: weekdays, full and abbreviated, in both languages', () => {
   assert.deepEqual(when('x sexta'), ['2026-10-09', 'all day'])
   assert.deepEqual(when('x sexta-feira'), ['2026-10-09', 'all day'])
-  assert.deepEqual(when('x sex'), ['2026-10-09', 'all day'])
+  assert.deepEqual(when('x na sex'), ['2026-10-09', 'all day'])
   assert.deepEqual(when('x sábado'), ['2026-10-10', 'all day'])
   assert.deepEqual(when('x sab'), ['2026-10-10', 'all day'])
   assert.deepEqual(when('x Friday', 'en'), ['2026-10-09', 'all day'])
   assert.deepEqual(when('x fri', 'en'), ['2026-10-09', 'all day'])
   assert.deepEqual(when('x on Thursday', 'en'), ['2026-10-08', 'all day'])
   assert.deepEqual(when('x na quarta'), ['2026-10-07', 'all day'])
+})
+
+test('parseQuickAdd: short weekdays that are also words need a preposition or a time', () => {
+  for (const [text, lang] of [['Ter aula com Ana', 'pt'], ['Sex ed class', 'en'], ['Buy sun lamp', 'en'],
+    ['Wed planning notes', 'en'], ['Sat exam results', 'en'], ['Dom Casmurro clube do livro', 'pt']]) {
+    assert.deepEqual([parse(text, lang).title, parse(text, lang).dateKey], [text, '2026-10-06'], text)
+  }
+  assert.deepEqual(parse('Preciso ter 2h de estudo').allDay, true)
+  assert.match(parse('Preciso ter 2h de estudo').title, /^Preciso ter /)
+})
+
+test('parseQuickAdd: an ambiguous short weekday counts after on/next/na/até or before a time', () => {
+  assert.deepEqual(when('Aula na ter'), ['2026-10-06', 'all day'])
+  assert.deepEqual(when('Prova até sex'), ['2026-10-09', 'all day'])
+  assert.deepEqual(when('Missa no dom'), ['2026-10-11', 'all day'])
+  assert.deepEqual(when('x próximo sab'), ['2026-10-10', 'all day'])
+  assert.deepEqual(when('x sex que vem'), ['2026-10-09', 'all day'])
+  assert.deepEqual(when('picnic on sun', 'en'), ['2026-10-11', 'all day'])
+  assert.deepEqual(when('review next wed', 'en'), ['2026-10-07', 'all day'])
+  assert.deepEqual(when('Aula ter 14h'), ['2026-10-06', '14:00-15:00'])
+  assert.deepEqual(when('Dentista sex às 15'), ['2026-10-09', '15:00-16:00'])
+  assert.deepEqual(when('brunch sat 10am', 'en'), ['2026-10-10', '10:00-11:00'])
+  assert.deepEqual(when('sync wed 9:30-10:15', 'en'), ['2026-10-07', '09:30-10:15'])
+  assert.equal(parse('Ter aula com Ana na ter').title, 'Ter aula com Ana')
+  assert.equal(parse('Sex ed class sat 10am', 'en').title, 'Sex ed class')
 })
 
 test('parseQuickAdd: a weekday already past this week is next week; today is today', () => {

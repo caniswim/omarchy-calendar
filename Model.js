@@ -10,7 +10,7 @@
 // Sections: text and clock helpers · day keys · week start · ISO week and
 // progress bars · bar clock formats · month grid · events and calendars ·
 // links · event times · agenda · relative time · bar label · reminders ·
-// sync state · writing · quick add.
+// reminder notifications · sync state · writing · quick add.
 
 var MINUTE_MS = 60 * 1000
 var HOUR_MS = 60 * MINUTE_MS
@@ -951,6 +951,26 @@ function barLabel(state, lang, limit) {
   return Strings.tr(lang, "bar.soon", [title, spanText(Math.max(1, Math.ceil(state.countdownMs / MINUTE_MS)), lang)])
 }
 
+// The meeting a middle click on the bar means: the one being announced,
+// else one under way (the latest to start), else the next one today.
+function meetingToJoin(events, nowMs, announced) {
+  if (announced && meetingUrlFor(announced)) return announced
+  var todayKey = keyForMs(nowMs)
+  var current = null
+  var next = null
+  for (var i = 0; i < (events || []).length; i++) {
+    var event = events[i]
+    if (!event || event.allDay || !meetingUrlFor(event)) continue
+    var range = timeRange(event)
+    if (range.start <= nowMs && nowMs < range.end) {
+      if (!current || range.start > timeRange(current).start) current = event
+    } else if (range.start > nowMs && keyForMs(range.start) === todayKey) {
+      if (!next || range.start < timeRange(next).start) next = event
+    }
+  }
+  return current || next
+}
+
 // ---- Reminders. Desktop notifications fire at each event's own reminder
 //      times (the `reminders` minutes the sync writes); a meeting with none
 //      still gets one, because a link is the thing people miss. Fired keys
@@ -1068,6 +1088,89 @@ function reminderSummary(event, lang, fallbackMinutes) {
   var labels = []
   for (var i = 0; i < minutes.length; i++) labels.push(reminderLabel(minutes[i], lang))
   return Strings.tr(lang, "insp.reminders", [labels.join(", ")])
+}
+
+// ---- Reminder notifications: what the bar widget sends and remembers.
+
+// How long after a reminder the panel offers to snooze it.
+var SNOOZE_WINDOW_MS = 15 * MINUTE_MS
+
+// One key per occurrence ("id|start"), whichever of its reminders fired.
+function reminderEventKey(event) {
+  return text(event && event.id) + "|" + text(event && event.start)
+}
+
+// `recent` maps reminderEventKey → when its reminder was sent.
+function canSnoozeReminder(recent, event, nowMs) {
+  var firedAt = recent ? recent[reminderEventKey(event)] : undefined
+  return firedAt !== undefined && nowMs - firedAt < SNOOZE_WINDOW_MS
+}
+
+// `recent` without the entries too old to snooze.
+function pruneRecentReminders(recent, nowMs) {
+  var next = {}
+  for (var key in (recent || {}))
+    if (nowMs - Number(recent[key]) < SNOOZE_WINDOW_MS) next[key] = Number(recent[key])
+  return next
+}
+
+// Only what a snoozed reminder needs to be rebuilt after a shell reload.
+function slimReminderEvent(event) {
+  return {
+    id: event.id, start: event.start, end: event.end, allDay: event.allDay === true,
+    dateKey: event.dateKey, title: event.title, location: event.location,
+    meetingUrl: event.meetingUrl, eventUrl: event.eventUrl
+  }
+}
+
+function capitalized(value) {
+  var s = text(value)
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function reminderTitle(event, lang) {
+  var title = text(event.title).trim()
+  return truncateTitle(title || Strings.tr(lang, "common.noTitle"), 80)
+}
+
+// "Standup in 10 min", "Standup is starting"; an all-day event is just its
+// title, the day goes in the body.
+function reminderHeadline(event, nowMs, lang) {
+  if (event.allDay) return reminderTitle(event, lang)
+  var minutes = Math.ceil((timeRange(event).start - nowMs) / MINUTE_MS)
+  return minutes >= 1
+    ? Strings.tr(lang, "notify.title", [reminderTitle(event, lang), spanText(minutes, lang)])
+    : Strings.tr(lang, "notify.titleNow", [reminderTitle(event, lang)])
+}
+
+// "13:00–13:45 · Google Meet", "Tomorrow · 09:00–09:30 · Room 4",
+// "Tomorrow · all day". Clock times and weekday names are Qt's, so the
+// caller passes formatTime(ms) and formatWeekday(ms).
+function reminderBody(event, nowMs, lang, formatTime, formatWeekday) {
+  if (event.allDay)
+    return capitalized(relativeTime(event, nowMs, lang)) + " · " + Strings.tr(lang, "insp.allDay")
+
+  var range = timeRange(event)
+  var parts = []
+  var startKey = keyForMs(range.start)
+  var todayKey = keyForMs(nowMs)
+  if (startKey !== todayKey)
+    parts.push(relativeDayLabel(startKey, todayKey, lang) || capitalized(formatWeekday(range.start)))
+  var times = formatTime(range.start)
+  if (range.end > range.start) times += "–" + formatTime(range.end)
+  parts.push(times)
+
+  var where = meetingHost(meetingUrlFor(event)) || truncateTitle(text(event.location).trim(), 48)
+  if (where) parts.push(where)
+  return parts.join(" · ")
+}
+
+// omarchy-notification-send reads a leading "-g" or "--app-name=…" as an
+// option, so a title that happens to look like one gets a word joiner in
+// front and stays text.
+function notificationArg(value) {
+  var s = text(value)
+  return /^-/.test(s) ? "\u2060" + s : s
 }
 
 // ---- Sync state
@@ -1232,25 +1335,19 @@ function reminderOptions(reminders, lang) {
   return options
 }
 
-function durationLabel(minutes) {
-  if (minutes < 60) return minutes + " min"
-  var hours = Math.floor(minutes / 60)
-  var rest = minutes % 60
-  return hours + " h" + (rest ? " " + pad2(rest) : "")
-}
-
 // The start menu: every 15 minutes of the day. The end menu (fromMinutes is
 // the start): from 15 minutes after the start up to midnight, with the
 // duration, as Google shows it. "00:00" at the end means that midnight.
-// Labels come from the caller's format.
-function timeOptions(fromMinutes, formatTime, withDuration) {
+// Labels come from the caller's format; `lang` (default English) words the
+// durations.
+function timeOptions(fromMinutes, formatTime, withDuration, lang) {
   var options = []
   var first = fromMinutes < 0 ? 0 : fromMinutes + 15
   var last = fromMinutes < 0 ? 23 * 60 + 45 : 24 * 60
   for (var m = first; m <= last; m += 15) {
     var value = clockText(m)
     var label = formatTime(value)
-    if (withDuration && fromMinutes >= 0) label += " (" + durationLabel(m - fromMinutes) + ")"
+    if (withDuration && fromMinutes >= 0) label += " (" + spanText(m - fromMinutes, lang || "en") + ")"
     options.push({ value: value, label: label })
   }
   return options
@@ -1304,6 +1401,12 @@ var QUICK_WEEKDAYS = [
   ["friday", "fri", "sexta", "sex"],
   ["saturday", "sat", "sabado", "sab"]
 ]
+
+// Short forms that are also ordinary words ("Ter aula com Ana", "sun lamp",
+// "Dom Casmurro") are only a weekday with something that says so: a word
+// that introduces a day before them ("na ter", "next sat", "até sex"), or
+// a time right after ("sex 15h", "sun at 5pm"). Full names always count.
+var QUICK_AMBIGUOUS_WEEKDAYS = ["sun", "sat", "wed", "dom", "ter", "sex"]
 
 // Portuguese abbreviations that are also English words ("set", "out") only
 // count after "de" ("12 de out"), and only English is ever written month
@@ -1361,8 +1464,12 @@ var QUICK_PATTERNS = {
   dayAfterTomorrow: /\s(?:depois de amanha|day after tomorrow)(?=\s)/,
   tomorrow: /\s(?:amanha|tomorrow)(?=\s)/,
   today: /\s(?:hoje|today|tonight)(?=\s)/,
-  weekday: new RegExp("\\s((?:on|na|no|nesta|neste|esta|este|this) )?((?:next|proxima|proximo) )?"
-    + QUICK_WEEKDAY + "(?:-feira| feira)?( que vem)?(?=\\s)"),
+  // Groups: 1 a word introducing the day, 2 next/próxima, 3 the weekday,
+  // 4 "que vem", 5 a time straight after (looked at, not consumed).
+  weekday: new RegExp("\\s((?:on|na|no|nesta|neste|esta|este|this|by|until|ate) )?((?:next|proxima|proximo) )?"
+    + QUICK_WEEKDAY + "(?:-feira| feira)?( que vem)?"
+    + "(?=\\s(?:((?:(?:at|as|a partir das|starting at|from|das|entre|@)\\s?)?(?:" + QUICK_CLOCK + ")"
+    + "|(?:at|as|@)\\s?\\d{1,2})(?=[\\s\\-\u2013]))?)"),
   monthDayOnly: /\s(?:(?:on )?the (\d{1,2})(?:st|nd|rd|th)?|(?:on )?(\d{1,2})(?:st|nd|rd|th)|(?:no )?dia (\d{1,2}))(?=\s)/,
   timeRange: new RegExp("\\s(?:(?:from|de|das|entre) )?(" + QUICK_CLOCK + "|\\d{1,2})"
     + "\\s?(?:-|\u2013|to|until|till|ate|as|a|e)\\s?(" + QUICK_CLOCK + ")(?=\\s)"),
@@ -1459,6 +1566,7 @@ function readDate(scanner, today, lang) {
   // "próxima sexta" / "sexta que vem" skip today, so on a Friday they mean
   // a week from now.
   if (!date) date = take(scanner, p.weekday, function(m) {
+    if (QUICK_AMBIGUOUS_WEEKDAYS.indexOf(m[3]) !== -1 && !(m[1] || m[2] || m[4] || isStartTime(m[5]))) return null
     var ahead = (rowOf(m[3], [QUICK_WEEKDAYS]) - today.getDay() + 7) % 7
     if (ahead === 0 && (m[2] || m[4])) ahead = 7
     return offsetDate(today, ahead)
@@ -1512,6 +1620,16 @@ function resolvedClock(clock) {
 // meeting for half past one in the morning. Once the start is known, any
 // hour phrase left ("14h 2h") is a length.
 var EARLIEST_HOUR_PHRASE = 6
+
+// Whether a phrase readTimes would take as a start time, by the same rules:
+// "14h", "at 3", "2pm" are; "2h" on its own is a length.
+function isStartTime(phrase) {
+  if (!phrase) return false
+  var prefixed = phrase.match(/^(?:at|as|a partir das|starting at|from|das|entre|@)\s?(.+)$/)
+  var clock = readClock(prefixed ? prefixed[1] : phrase)
+  if (!clock) return false
+  return !!prefixed || !/^\d{1,2}h/.test(phrase) || clock.minutes >= EARLIEST_HOUR_PHRASE * 60
+}
 
 function readTimes(scanner) {
   var p = QUICK_PATTERNS

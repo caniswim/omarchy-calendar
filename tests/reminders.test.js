@@ -154,3 +154,66 @@ test('reminderSummary is the inspector line', () => {
   assert.equal(Model.reminderSummary(event({ meetingUrl: 'https://meet.google.com/x' }), 'pt'), 'Notificação: 10 minutos antes')
   assert.equal(Model.reminderSummary(event(), 'pt'), 'Sem notificação')
 })
+
+test('reminderEventKey is one key per occurrence', () => {
+  assert.equal(Model.reminderEventKey(event()), 'easy|' + START_ISO)
+  assert.equal(Model.reminderEventKey(null), '|')
+})
+
+test('canSnoozeReminder holds for 15 minutes after the reminder', () => {
+  const recent = { [Model.reminderEventKey(event())]: START - 10 * MIN }
+  assert.equal(Model.canSnoozeReminder(recent, event(), START - 10 * MIN), true)
+  assert.equal(Model.canSnoozeReminder(recent, event(), START + 4 * MIN), true)
+  assert.equal(Model.canSnoozeReminder(recent, event(), START + 5 * MIN), false)
+  assert.equal(Model.canSnoozeReminder(recent, event({ id: 'other' }), START), false)
+  assert.equal(Model.canSnoozeReminder(null, event(), START), false)
+})
+
+test('pruneRecentReminders keeps only what can still be snoozed, without mutating', () => {
+  const recent = { fresh: String(START - MIN), stale: START - 15 * MIN }
+  assert.deepEqual(Model.pruneRecentReminders(recent, START), { fresh: START - MIN })
+  assert.equal(recent.stale, START - 15 * MIN)
+  assert.deepEqual(Model.pruneRecentReminders(undefined, START), {})
+})
+
+test('slimReminderEvent keeps what a snoozed reminder needs', () => {
+  const slim = Model.slimReminderEvent(event({ description: 'long', reminders: [10], meetingUrl: 'https://meet.google.com/x' }))
+  assert.deepEqual(Object.keys(slim).sort(),
+    ['allDay', 'dateKey', 'end', 'eventUrl', 'id', 'location', 'meetingUrl', 'start', 'title'])
+  assert.equal(slim.allDay, false)
+  assert.equal(slim.meetingUrl, 'https://meet.google.com/x')
+})
+
+test('reminderHeadline counts down, then says it is starting', () => {
+  assert.equal(Model.reminderHeadline(event(), START - 10 * MIN, 'en'), 'Design review in 10 min')
+  assert.equal(Model.reminderHeadline(event(), START - 9.5 * MIN, 'pt'), 'Design review em 10 min')
+  assert.equal(Model.reminderHeadline(event(), START, 'en'), 'Design review is starting')
+  assert.equal(Model.reminderHeadline(event({ title: '  ' }), START - 90 * MIN, 'pt'), '(Sem título) em 1 h 30 min')
+  assert.equal(Model.reminderHeadline({ id: 'h', allDay: true, start: '2026-10-07', title: 'Holiday' }, START, 'en'), 'Holiday')
+  assert.equal(Model.reminderHeadline(event({ title: 'x'.repeat(100) }), START, 'en').length, 'x'.repeat(80).length + ' is starting'.length)
+})
+
+const clock = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+const weekday = (ms) => ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(ms).getDay()]
+
+test('reminderBody: times and where, with the day when it is not today', () => {
+  const meet = event({ meetingUrl: 'https://meet.google.com/x', location: 'Room 4' })
+  assert.equal(Model.reminderBody(meet, START - 10 * MIN, 'en', clock, weekday), '13:00–13:45 · Google Meet')
+  assert.equal(Model.reminderBody(event({ location: ' Room 4 ' }), START - 10 * MIN, 'en', clock, weekday), '13:00–13:45 · Room 4')
+  assert.equal(Model.reminderBody(event({ end: START_ISO }), START - 10 * MIN, 'en', clock, weekday), '13:00')
+  assert.equal(Model.reminderBody(event(), localMs(2026, 9, 5, 20, 0), 'pt', clock, weekday), 'Amanhã · 13:00–13:45')
+  assert.equal(Model.reminderBody(event(), localMs(2026, 9, 4, 20, 0), 'en', clock, weekday), 'Tuesday · 13:00–13:45')
+})
+
+test('reminderBody: an all-day event is its day', () => {
+  const holiday = { id: 'h', allDay: true, dateKey: '2026-10-07', start: '2026-10-07', end: '2026-10-08' }
+  assert.equal(Model.reminderBody(holiday, localMs(2026, 9, 6, 15, 0), 'en', clock, weekday), 'Tomorrow · all day')
+  assert.equal(Model.reminderBody(holiday, localMs(2026, 9, 6, 15, 0), 'pt', clock, weekday), 'Amanhã · dia todo')
+})
+
+test('notificationArg keeps option-looking text as text', () => {
+  assert.equal(Model.notificationArg('-g evil'), '⁠-g evil')
+  assert.equal(Model.notificationArg('--exec'), '⁠--exec')
+  assert.equal(Model.notificationArg('Standup in 5 min'), 'Standup in 5 min')
+  assert.equal(Model.notificationArg(''), '')
+})
