@@ -291,8 +291,8 @@ Column {
     text: {
       if (root.syncState === "missing") {
         return root.setupCommandCopied
-          ? qsTr("Copied. Paste it in a terminal:\n%1").arg(root.setupCommand)
-          : qsTr("No calendar connected yet. Click to copy, then run:\n%1").arg(root.setupCommand)
+          ? qsTr("Copied. Paste it in a terminal:\n%1\n\nTo skip Google Cloud (read only), add --ics").arg(root.setupCommand)
+          : qsTr("No calendar connected yet. Click to copy, then run:\n%1\n\nTo skip Google Cloud (read only), add --ics").arg(root.setupCommand)
       }
       if (root.syncState === "version") return qsTr("The events file was written by a newer version of this plugin.")
 
