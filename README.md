@@ -4,8 +4,10 @@
 events on it, a bar that tells you what is coming before it starts, and a
 form to create or edit events without opening Google.
 
-Not a Google user? It reads a plain JSON file, so khal, vdirsyncer, Nextcloud
-or an ICS feed work just as well. See [Use another source](#use-another-source).
+Not a Google user? The sync reads any iCal feed, see
+[Sync from the secret iCal address](#sync-from-the-secret-ical-address). The
+widget itself reads a plain JSON file, so khal, vdirsyncer or Nextcloud work
+just as well. See [Use another source](#use-another-source).
 
 ![Preview](preview.png)
 
@@ -39,15 +41,16 @@ time away for an event title would be a downgrade you pay for all day.
 - Everything the built-in Omarchy clock does: label formats, right click to
   cycle them, the year and life progress bars if you want them back
 - Theme aware, light themes included, because it is a fork of the built-in clock
-- No Google Cloud project needed if you read your calendars through
-  Evolution Data Server (community-maintained), or any other source that
-  writes the events file
+- No Google Cloud project needed if you read your calendars from their secret
+  iCal address (read only), through Evolution Data Server
+  (community-maintained), or from any other source that writes the events file
 
 ## Requirements
 
 Omarchy 4 with Quickshell. Google Calendar is optional, see
 [Use another source](#use-another-source). A Google Cloud project is optional
-too, see [Sync without a Google Cloud project](#sync-without-a-google-cloud-project).
+too, see [Sync from the secret iCal address](#sync-from-the-secret-ical-address)
+or [Sync without a Google Cloud project](#sync-without-a-google-cloud-project).
 
 ## Install
 
@@ -88,6 +91,11 @@ below, or point any other source at the file. The widget says as much when you
 open it, with the command to run.
 
 ## Sync your Google Calendar
+
+> **Only need to read your calendar?** `setup --ics` skips Google Cloud and
+> reads your calendar's secret iCal address instead. You cannot edit events
+> from the panel that way. See
+> [Sync from the secret iCal address](#sync-from-the-secret-ical-address).
 
 ```bash
 ~/.config/omarchy/plugins/tmn73.calendar/sync/setup
@@ -165,6 +173,43 @@ events. To move an event to another calendar, use Google Calendar. A repeat rule
 entry for, stays as it is unless you pick another one.
 
 The EDS backend cannot write yet, so the panel shows none of this there.
+
+## Sync from the secret iCal address
+
+The least setup of all, and read only. Google publishes every calendar at a
+private iCal address, so the sync can read that instead: no Google Cloud
+project, no OAuth client, no consent screen, no Evolution. Suggested in #32.
+
+```bash
+~/.config/omarchy/plugins/tmn73.calendar/sync/setup --ics
+```
+
+It asks for the address (Google Calendar on the web: Settings > your calendar >
+Integrate calendar > *Secret address in iCal format*), runs a test sync, then
+writes it to `~/.config/omarchy/calendar-sync.json` with mode 600 and installs
+the timer. If the test sync fails, your current config stays as it was. Or by
+hand:
+
+```json
+{
+  "backend": "ics",
+  "identity": "you@example.com",
+  "ics": [
+    { "url": "https://calendar.google.com/calendar/ical/.../private-.../basic.ics" },
+    { "url": "webcal://example.com/other.ics", "name": "Other", "color": "#33b679" }
+  ]
+}
+```
+
+Needs `python-icalendar` and `python-recurring-ical-events` (the setup installs
+them). Any https or webcal iCal feed works, not only Google's.
+
+The trade: no creating or editing events, Google refreshes the feed on its own
+schedule so a change can take a while to show up, and clicking an event opens
+nothing because the feed carries no link to it. Treat the address as a
+password; reset it in Google Calendar if it leaks.
+
+To go back to the Google Cloud sync, run `setup` again without `--ics`.
 
 ## Sync without a Google Cloud project
 

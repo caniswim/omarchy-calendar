@@ -11,11 +11,17 @@ set -euo pipefail
 
 # --write answers yes to "Create and edit events from the widget?" without
 # asking, for a script or a second run.
+#
+# --ics skips Google Cloud entirely: it asks for your calendar's secret iCal
+# address and reads that instead. Read only. Run setup again without --ics to
+# go back to the Google Cloud sync.
 WRITE=0
+ICS=0
 for arg in "$@"; do
   case "$arg" in
     --write) WRITE=1 ;;
-    *) echo "unknown option: $arg (the only option is --write)"; exit 2 ;;
+    --ics) ICS=1 ;;
+    *) echo "unknown option: $arg (expected --write or --ics)"; exit 2 ;;
   esac
 done
 
@@ -35,6 +41,115 @@ WRITE_SCOPE="https://www.googleapis.com/auth/calendar.events"
 
 step() { printf '\n==> %s\n' "$1"; }
 
+install_timer_and_sync() {
+  step "Installing the systemd timer"
+  mkdir -p "$HOME/.config/systemd/user"
+  cp "$SCRIPT_DIR/systemd/omarchy-calendar-sync."{service,timer} "$HOME/.config/systemd/user/"
+  # The shipped unit assumes the standard plugin directory. Point it at wherever
+  # this checkout actually lives, so a hand-cloned repo works too. In a sed
+  # replacement, & means the matched text and | ends the expression, so a path
+  # that contains either (or a backslash) must be escaped first.
+  local sync_bin_escaped
+  sync_bin_escaped=$(printf '%s' "$SYNC_BIN" | sed 's/[&|\\]/\\&/g')
+  sed -i "s|^ExecStart=.*|ExecStart=$sync_bin_escaped|" "$HOME/.config/systemd/user/omarchy-calendar-sync.service"
+  systemctl --user daemon-reload
+  systemctl --user enable --now omarchy-calendar-sync.timer
+
+  step "Running the first sync"
+  systemctl --user start omarchy-calendar-sync.service || true
+  systemctl --user status omarchy-calendar-sync.service --no-pager || true
+
+  cat <<EOF
+
+Done. Events land in ~/.local/state/omarchy/calendar-events.json every 5 minutes.
+
+  Logs:    journalctl --user -u omarchy-calendar-sync -f
+  Choose which calendars to show: click the clock, then the gear icon.
+EOF
+}
+
+setup_ics() {
+  step "Reading your calendar from its secret iCal address"
+  if ! python3 -c 'import icalendar, recurring_ical_events' 2>/dev/null; then
+    echo "  Installing python-icalendar and python-recurring-ical-events"
+    sudo pacman -S --needed --noconfirm python-icalendar python-recurring-ical-events
+  fi
+
+  cat <<'EOF'
+
+  In Google Calendar on the web, for each calendar you want:
+    Settings (gear) > Settings > click the calendar on the left
+    > Integrate calendar > "Secret address in iCal format" > copy
+
+  That address is a password: anyone holding it can read the calendar.
+  Reset it there if it ever leaks.
+
+  Paste one address per line. An empty line finishes.
+EOF
+  [ -t 0 ] || { echo "  Not a terminal, cannot ask for the address."; exit 1; }
+
+  local urls=() line
+  while :; do
+    read -r -p "  URL: " line || break
+    [ -n "$line" ] || break
+    # The public address and the embed link sit right next to the secret one
+    # in Google's settings, and neither works for a private calendar.
+    local problem
+    problem=$(PYTHONPATH="$SCRIPT_DIR" python3 -c \
+      'import sys; from omarchy_calendar_sync.ics import url_problem; print(url_problem(sys.argv[1]))' "$line")
+    if [ -n "$problem" ]; then
+      printf '  Not this one: %s\n' "$problem"
+      continue
+    fi
+    urls+=("$line")
+  done
+  [ "${#urls[@]}" -gt 0 ] || { echo "  No address given, nothing changed."; exit 1; }
+
+  local identity=""
+  read -r -p "  Your email address (marks declined invitations, optional): " identity || true
+
+  local config="$HOME/.config/omarchy/calendar-sync.json"
+  mkdir -p "$(dirname "$config")"
+  # The new config replaces the current one only after a test sync passes.
+  # A wrong address must not break a setup that works today.
+  local candidate
+  candidate=$(mktemp "$config.XXXXXX")
+  trap 'rm -f "$candidate"' EXIT
+  python3 - "$config" "$candidate" "$identity" "${urls[@]}" <<'PYEOF'
+import json, os, pathlib, sys
+
+path, candidate = pathlib.Path(sys.argv[1]), sys.argv[2]
+identity, urls = sys.argv[3].strip(), sys.argv[4:]
+config = {}
+if path.exists():
+    try:
+        config = json.loads(path.read_text())
+    except ValueError:
+        config = {}
+config["backend"] = "ics"
+config["ics"] = [{"url": url.strip()} for url in urls]
+config["write"] = False
+if identity:
+    config["identity"] = identity
+# The file now holds the secret addresses.
+fd = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as stream:
+    stream.write(json.dumps(config, indent=2) + "\n")
+os.chmod(candidate, 0o600)
+PYEOF
+
+  step "Testing the feeds"
+  "$SYNC_BIN" --config "$candidate" || {
+    echo "  The sync failed, see above. $config is unchanged."
+    exit 1
+  }
+  mv -f "$candidate" "$config"
+  echo "  backend set to ics with ${#urls[@]} feed(s) in $config"
+
+  install_timer_and_sync
+  exit 0
+}
+
 # `read` returns non-zero at EOF, and under `set -e` that killed the whole
 # script at the very first prompt with no message at all. Anyone running this
 # through a pipe, a wrapper, or any non-interactive shell got as far as the
@@ -47,6 +162,8 @@ pause() {
   printf '\nPress Enter when done. '
   read -r _ || true
 }
+
+[ "$ICS" = 1 ] && setup_ics
 
 if [ ! -t 0 ]; then
   cat <<'EOF'
@@ -365,35 +482,17 @@ if path.exists():
         config = json.loads(path.read_text())
     except ValueError:
         config = {}
+# This flow sets up the Google Cloud sync, so it must also select it.
+# Without this line, a config left by setup --ics keeps reading the feeds.
+config["backend"] = "gws"
 config["gwsPath"] = gws_path
 config["profile"] = profile
 config["write"] = write
 path.write_text(json.dumps(config, indent=2) + "\n")
+print("  backend set to gws")
 print("  gwsPath set to", gws_path)
 print("  profile set to", profile)
 print("  write set to", write)
 PYEOF
 
-step "Installing the systemd timer"
-mkdir -p "$HOME/.config/systemd/user"
-cp "$SCRIPT_DIR/systemd/omarchy-calendar-sync."{service,timer} "$HOME/.config/systemd/user/"
-# The shipped unit assumes the standard plugin directory. Point it at wherever
-# this checkout actually lives, so a hand-cloned repo works too. In a sed
-# replacement, & means the matched text and | ends the expression, so a path
-# that contains either (or a backslash) must be escaped first.
-sync_bin_escaped=$(printf '%s' "$SYNC_BIN" | sed 's/[&|\\]/\\&/g')
-sed -i "s|^ExecStart=.*|ExecStart=$sync_bin_escaped|" "$HOME/.config/systemd/user/omarchy-calendar-sync.service"
-systemctl --user daemon-reload
-systemctl --user enable --now omarchy-calendar-sync.timer
-
-step "Running the first sync"
-systemctl --user start omarchy-calendar-sync.service || true
-systemctl --user status omarchy-calendar-sync.service --no-pager || true
-
-cat <<EOF
-
-Done. Events land in ~/.local/state/omarchy/calendar-events.json every 5 minutes.
-
-  Logs:    journalctl --user -u omarchy-calendar-sync -f
-  Choose which calendars to show: click the clock, then the gear icon.
-EOF
+install_timer_and_sync

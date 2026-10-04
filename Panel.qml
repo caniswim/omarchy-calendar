@@ -1647,8 +1647,8 @@ Panel {
               }
               text: root.syncState === "missing"
                 ? (root.setupCommandCopied
-                  ? qsTr("Copied. Paste it in a terminal:\n%1").arg(root.setupCommand)
-                  : qsTr("No calendar synced yet. Click to copy, then run:\n%1").arg(root.setupCommand))
+                  ? qsTr("Copied. Paste it in a terminal:\n%1\n\nTo skip Google Cloud (read only), add --ics").arg(root.setupCommand)
+                  : qsTr("No calendar synced yet. Click to copy, then run:\n%1\n\nTo skip Google Cloud (read only), add --ics").arg(root.setupCommand))
                 : root.syncState === "version"
                   ? qsTr("Events file was written by a newer version. Update the plugin.")
                   : root.syncState === "stale"
