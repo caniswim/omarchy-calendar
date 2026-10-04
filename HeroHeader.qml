@@ -23,7 +23,7 @@ Item {
   signal settingsToggled()
 
   // Decorative, so sized off the spacing scale rather than the font scale.
-  readonly property int datePixelSize: Style.space(44)
+  readonly property int datePixelSize: Style.space(30)
   readonly property int iconPixelSize: Math.round(datePixelSize * 0.95)
 
   // A long month in a wide monospace font ("September 30") can run under

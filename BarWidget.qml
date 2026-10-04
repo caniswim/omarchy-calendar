@@ -85,7 +85,7 @@ BarWidget {
   }
 
   function formatted(date) {
-    return Qt.formatDateTime(date, configuredFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
+    return Qt.locale(Strings.localeName(root.language)).toString(date, configuredFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
   }
 
   function join(event) {

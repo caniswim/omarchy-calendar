@@ -93,7 +93,7 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Style.space(6)
             anchors.top: rowTitle.top
-            width: Style.space(50)
+            width: Style.space(64)
             text: root.timeLabel(row.modelData)
             elide: Text.ElideRight
             color: Util.alpha(root.foreground, 0.55)

@@ -172,7 +172,12 @@ class TestExpansion(unittest.TestCase):
 
     def test_calendar_name_comes_from_the_feed(self):
         self.assertEqual(self.calendars[0]["name"], "me@example.com")
-        self.assertEqual(self.calendars[0]["color"], ics.FALLBACK_COLOR)
+        self.assertEqual(self.calendars[0]["color"], ics.FEED_COLORS[0])
+
+    def test_feeds_without_a_colour_get_distinct_ones(self):
+        other = "https://calendar.google.com/calendar/ical/b%40example.com/private-x/basic.ics"
+        calendars = client(feeds=[URL, other]).calendars()
+        self.assertEqual([c["color"] for c in calendars], list(ics.FEED_COLORS[:2]))
 
     def test_recurrence_is_expanded_and_cancelled_instance_dropped(self):
         days = [row["dateKey"] for row in self.by_title["Standup"]]

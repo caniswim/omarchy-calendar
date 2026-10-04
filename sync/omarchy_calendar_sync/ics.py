@@ -30,7 +30,9 @@ from .localzone import resolve_local_timezone
 from .resources import build_event
 
 FETCH_TIMEOUT = 30
-FALLBACK_COLOR = "#4285f4"
+# A feed carries no colour of its own, so each one takes the next of
+# Google's calendar colours, keeping two feeds apart on the grid.
+FEED_COLORS = ("#4285f4", "#f6bf26", "#33b679", "#e67c73", "#8e24aa", "#f4511e", "#039be5", "#7986cb")
 USER_AGENT = "omarchy-calendar-sync"
 
 
@@ -304,7 +306,7 @@ class Ics:
         icalendar, _rie = _load_libs()
         found = []
         failures = []
-        for feed in self._feeds:
+        for position, feed in enumerate(self._feeds):
             url = feed["url"]
             try:
                 body = self._fetch(url)
@@ -327,7 +329,7 @@ class Ics:
                     or redact(url),
                     "color": feed["color"]
                     or _text(calendar, "X-APPLE-CALENDAR-COLOR")
-                    or FALLBACK_COLOR,
+                    or FEED_COLORS[position % len(FEED_COLORS)],
                 }
             )
 
