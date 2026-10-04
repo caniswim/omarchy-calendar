@@ -427,7 +427,7 @@ from your Google Cloud console to revoke properly.
 
 ```bash
 cd sync && PYTHONPATH=. python3 -m unittest discover -s ../tests -t .. -v
-node --test tests/model.test.js
+node --test tests/*.test.js
 ```
 
 No dependencies, no dev dependencies. The Python sync is standard library only
