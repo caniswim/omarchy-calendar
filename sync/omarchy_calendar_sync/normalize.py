@@ -5,6 +5,7 @@ module needs is passed in, which is what makes the timezone behaviour
 testable without freezing time.
 """
 
+import re
 from datetime import date, datetime, time, timedelta
 
 NO_TITLE = "(no title)"
@@ -27,6 +28,34 @@ def _https_only(value):
     return text
 
 
+# Video links written into an event's text rather than attached as a
+# conference: an invitation forwarded by email, or pasted by hand. Free text
+# can link anywhere, so only known meeting hosts become a Join button.
+_URL_TAIL = r"[^\s\"'<>)\]\\]+"
+_TEXT_MEETING_URL = re.compile(
+    r"https://(?:"
+    r"meet\.google\.com/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}"
+    r"|(?:[\w-]+\.)*zoom\.us/(?:j|my|w)/" + _URL_TAIL +
+    r"|teams\.microsoft\.com/l/meetup-join/" + _URL_TAIL +
+    r"|teams\.live\.com/meet/" + _URL_TAIL +
+    r"|(?:[\w-]+\.)*webex\.com/" + _URL_TAIL +
+    r"|meet\.jit\.si/" + _URL_TAIL +
+    r"|whereby\.com/" + _URL_TAIL +
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _meeting_url_in_text(*texts):
+    for text in texts:
+        match = _TEXT_MEETING_URL.search(str(text or ""))
+        if match:
+            found = _https_only(match.group(0).rstrip(".,;:!?"))
+            if found:
+                return found
+    return ""
+
+
 def _meeting_url(gevent):
     """The video link for an event, preferring the one Google resolves itself."""
     direct = _https_only(gevent.get("hangoutLink"))
@@ -39,7 +68,10 @@ def _meeting_url(gevent):
             found = _https_only(entry.get("uri"))
             if found:
                 return found
-    return ""
+
+    # Location first: it is where people paste the link on purpose, while a
+    # description may also mention some other meeting.
+    return _meeting_url_in_text(gevent.get("location"), gevent.get("description"))
 
 
 def _response_status(gevent):

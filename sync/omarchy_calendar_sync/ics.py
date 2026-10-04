@@ -190,7 +190,7 @@ def occurrence_to_event(component, local_tz, identity=""):
 
     status = _text(component, "STATUS").upper()
 
-    return build_event(
+    event = build_event(
         uid=_text(component, "UID"),
         start_node=start_node,
         end_node=end_node,
@@ -201,6 +201,9 @@ def occurrence_to_event(component, local_tz, identity=""):
         partstat=_own_partstat(component, identity),
         recurrence_key=start_node.get("dateTime") or start_node.get("date"),
     )
+    # Read for a meeting link only; the contract does not carry it.
+    event["description"] = _text(component, "DESCRIPTION")
+    return event
 
 
 class Ics:

@@ -214,6 +214,34 @@ class TestMeetingUrl(unittest.TestCase):
             rows = normalize.normalize_event(event, CAL, BOGOTA)
             self.assertEqual(rows[0]["meetingUrl"], "", hostile)
 
+    def test_link_pasted_into_location_or_description_is_found(self):
+        # An invitation forwarded by email carries the link only as text.
+        cases = (
+            ({"location": "Google Meet: https://meet.google.com/abc-defg-hij"},
+             "https://meet.google.com/abc-defg-hij"),
+            ({"description": "Entrar: https://us02web.zoom.us/j/8812345?pwd=Xy1.\nOutro texto"},
+             "https://us02web.zoom.us/j/8812345?pwd=Xy1"),
+            ({"description": "<a href=\"https://teams.microsoft.com/l/meetup-join/19%3a1\">Join</a>"},
+             "https://teams.microsoft.com/l/meetup-join/19%3a1"),
+        )
+        for fields, expected in cases:
+            event = timed("2026-08-10T09:00:00-05:00", "2026-08-10T09:15:00-05:00")
+            event.update(fields)
+            rows = normalize.normalize_event(event, CAL, BOGOTA)
+            self.assertEqual(rows[0]["meetingUrl"], expected, fields)
+
+    def test_location_wins_over_description_and_unknown_hosts_are_ignored(self):
+        event = timed("2026-08-10T09:00:00-05:00", "2026-08-10T09:15:00-05:00")
+        event["location"] = "https://meet.google.com/aaa-bbbb-ccc"
+        event["description"] = "Previous call: https://meet.google.com/xxx-yyyy-zzz"
+        rows = normalize.normalize_event(event, CAL, BOGOTA)
+        self.assertEqual(rows[0]["meetingUrl"], "https://meet.google.com/aaa-bbbb-ccc")
+
+        event = timed("2026-08-10T09:00:00-05:00", "2026-08-10T09:15:00-05:00")
+        event["description"] = "Slides: https://evil.example.com/meet.google.com/abc-defg-hij"
+        rows = normalize.normalize_event(event, CAL, BOGOTA)
+        self.assertEqual(rows[0]["meetingUrl"], "")
+
     def test_missing_link_is_an_empty_string_not_none(self):
         rows = normalize.normalize_event(
             timed("2026-08-10T09:00:00-05:00", "2026-08-10T09:15:00-05:00"), CAL, BOGOTA
