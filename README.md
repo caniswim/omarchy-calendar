@@ -177,9 +177,10 @@ project, no OAuth client, no consent screen, no Evolution. Suggested in #32.
 ```
 
 It asks for the address (Google Calendar on the web: Settings > your calendar >
-Integrate calendar > *Secret address in iCal format*), writes it to
-`~/.config/omarchy/calendar-sync.json` with mode 600, and installs the timer.
-Or by hand:
+Integrate calendar > *Secret address in iCal format*), runs a test sync, then
+writes it to `~/.config/omarchy/calendar-sync.json` with mode 600 and installs
+the timer. If the test sync fails, your current config stays as it was. Or by
+hand:
 
 ```json
 {
@@ -199,6 +200,8 @@ The trade: no creating or editing events, Google refreshes the feed on its own
 schedule so a change can take a while to show up, and clicking an event opens
 nothing because the feed carries no link to it. Treat the address as a
 password; reset it in Google Calendar if it leaks.
+
+To go back to the Google Cloud sync, run `setup` again without `--ics`.
 
 ## Sync without a Google Cloud project
 
