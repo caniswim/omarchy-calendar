@@ -1,22 +1,52 @@
 # Calendar for Omarchy
 
-**Your Google Calendar, in your Omarchy bar.** A month view with your real
-events on it, a bar that tells you what is coming before it starts, and a
-form to create or edit events without opening Google.
+**Your calendar, in your Omarchy bar.** The month at a glance, the day's
+agenda and the next meeting beside it, a bar that warns you before it starts,
+and reminders that join the call when you click them.
 
-Not a Google user? It reads a plain JSON file, so khal, vdirsyncer, Nextcloud
-or an ICS feed work just as well. See [Use another source](#use-another-source).
+> **This is a fork** of [tmn73/omarchy-calendar](https://github.com/tmn73/omarchy-calendar)
+> by [@tmn73](https://github.com/tmn73), the original author of this plugin. All
+> credit for the foundation goes there: the month grid, the sync, the events
+> file contract, the Google write path. This fork adds a redesigned panel,
+> reminders, quick add, English and Portuguese, and an iCal backend that needs
+> no Google Cloud project. Everything here has been proposed upstream
+> ([#33](https://github.com/tmn73/omarchy-calendar/pull/33),
+> [#34](https://github.com/tmn73/omarchy-calendar/pull/34)). If those land, use
+> the original.
 
-![Preview](preview.png)
+![The panel: month, agenda and details](docs/images/panel.png)
 
-It replaces the built-in clock rather than sitting beside it, so you keep one
-icon. Left click opens a month calendar with your real events on it. When
-something is close, the bar itself stops being just a clock and tells you:
+## What this fork adds
 
-![The bar announcing the next event](docs/images/bar.png)
+| | Original | This fork |
+|---|---|---|
+| Panel | Month grid with the day's list under it | Month, agenda and details side by side |
+| Long titles | Cut off | Wrapped, always readable |
+| Deadlines and tasks | Plain rows | `DEADLINE:` badge, task circles, done tasks struck through |
+| Join button | Only 15 min before a meeting | Always there; filled **Join** when it is time |
+| Meeting links | Google's conference field only | Also links in the location or description (Meet, Zoom, Teams, Webex, Jitsi, Whereby) |
+| Creating events | Form | Quick add in plain language (`call with Ana tomorrow 2pm for 45m`), plus the form |
+| Event details | Opens Google | Details column: Join, directions, description, reminder |
+| Bar | Announces the next event | Escalates: quiet title, accent + Join chip, urgent when it starts; middle click joins |
+| Reminders | No | Desktop notifications at your Google reminder times; click to join |
+| Keyboard | Month stepping | Days, weeks, items, quick add, edit, join, open |
+| Languages | English | English and Portuguese |
+| Google without a Cloud project | Evolution Data Server | Also the secret iCal address: paste a URL, done |
 
-The clock stays. This widget takes the desktop clock's place, so trading the
-time away for an event title would be a downgrade you pay for all day.
+![Quick add](docs/images/quick-add.png)
+
+The bar warns you as a meeting nears, and lets you join from it:
+
+![The bar: soon, imminent, live](docs/images/bar.png)
+
+<details>
+<summary>More screenshots: Portuguese, the edit form</summary>
+
+![The panel in Portuguese](docs/images/panel-pt.png)
+
+![Editing an event beside the grid](docs/images/form.png)
+
+</details>
 
 ## Features
 
@@ -72,7 +102,27 @@ too, see [Sync without a Google Cloud project](#sync-without-a-google-cloud-proj
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/tmn73/omarchy-calendar.git --enable
+omarchy plugin add https://github.com/caniswim/omarchy-calendar.git --enable
+```
+
+**Coming from the original plugin?** This fork keeps the plugin id
+`tmn73.calendar`, so it is a drop-in replacement: your `shell.json` entry, sync
+config and timer all keep working. Remove the original first, then add this
+one:
+
+```bash
+omarchy plugin remove tmn73.calendar
+omarchy plugin add https://github.com/caniswim/omarchy-calendar.git --enable
+omarchy restart shell
+```
+
+Or switch an existing install in place:
+
+```bash
+cd ~/.config/omarchy/plugins/tmn73.calendar
+git remote set-url origin https://github.com/caniswim/omarchy-calendar.git
+git fetch origin && git reset --hard origin/main
+omarchy restart shell
 ```
 
 This widget **replaces** the built-in clock. In `~/.config/omarchy/shell.json`,
@@ -101,6 +151,20 @@ Then:
 ```bash
 omarchy restart shell
 ```
+
+### The fastest way to connect Google Calendar
+
+No Google Cloud project, no OAuth, about a minute:
+
+```bash
+~/.config/omarchy/plugins/tmn73.calendar/sync/setup --ics
+```
+
+Paste your calendar's **Secret address in iCal format** (Google Calendar on the
+web → Settings → your calendar → *Integrate calendar*). It is read only. To
+create events from the panel too, use the Google setup below. See
+[Sync from the secret iCal address](#sync-from-the-secret-ical-address) for the
+details and trade-offs.
 
 **Installing is not the whole job.** At this point you have a working clock and
 an empty calendar, because nothing is feeding it yet. Connect Google Calendar
@@ -497,7 +561,27 @@ can be tested.
 live shell to render, and building that harness would cost more than it catches.
 Anything worth testing was deliberately pushed down into `Model.js`.
 
+## Staying up to date
+
+```bash
+omarchy plugin update tmn73.calendar
+```
+
+## Credits
+
+- [**@tmn73**](https://github.com/tmn73) created this plugin:
+  [tmn73/omarchy-calendar](https://github.com/tmn73/omarchy-calendar). This fork
+  stands on that work.
+- Everyone who contributed upstream, including the Evolution Data Server
+  backend, the agenda timeline and the light-theme fixes.
+- [Omarchy](https://omarchy.org)'s built-in clock plugin, which the original was
+  derived from.
+- Ideas borrowed, with thanks, from other Omarchy calendar plugins:
+  reminders done right in HeitorM50/omarchy-gcal and jonspinks/omarchy-calendar,
+  link detection in esasse/omarchy-agenda, the iCal approach in
+  tobiasz-p/next-event.
+
 ## License
 
-MIT. Derived from Omarchy's built-in clock plugin, whose copyright notice is
-kept in `LICENSE`.
+MIT, unchanged from the original. Derived from Omarchy's built-in clock plugin;
+both copyright notices are kept in `LICENSE`.
