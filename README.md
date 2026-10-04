@@ -166,6 +166,40 @@ entry for, stays as it is unless you pick another one.
 
 The EDS backend cannot write yet, so the panel shows none of this there.
 
+## Sync from the secret iCal address
+
+The least setup of all, and read only. Google publishes every calendar at a
+private iCal address, so the sync can read that instead: no Google Cloud
+project, no OAuth client, no consent screen, no Evolution. Suggested in #32.
+
+```bash
+~/.config/omarchy/plugins/tmn73.calendar/sync/setup --ics
+```
+
+It asks for the address (Google Calendar on the web: Settings > your calendar >
+Integrate calendar > *Secret address in iCal format*), writes it to
+`~/.config/omarchy/calendar-sync.json` with mode 600, and installs the timer.
+Or by hand:
+
+```json
+{
+  "backend": "ics",
+  "identity": "you@example.com",
+  "ics": [
+    { "url": "https://calendar.google.com/calendar/ical/.../private-.../basic.ics" },
+    { "url": "webcal://example.com/other.ics", "name": "Other", "color": "#33b679" }
+  ]
+}
+```
+
+Needs `python-icalendar` and `python-recurring-ical-events` (the setup installs
+them). Any https or webcal iCal feed works, not only Google's.
+
+The trade: no creating or editing events, Google refreshes the feed on its own
+schedule so a change can take a while to show up, and clicking an event opens
+nothing because the feed carries no link to it. Treat the address as a
+password; reset it in Google Calendar if it leaks.
+
 ## Sync without a Google Cloud project
 
 > **Community-maintained.** The author does not run Evolution Data Server, so

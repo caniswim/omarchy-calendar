@@ -197,8 +197,12 @@ def build_client(cfg):
         from .eds import Eds
 
         return Eds(identity=cfg.get("identity", ""))
+    if backend == "ics":
+        from .ics import Ics
+
+        return Ics(cfg.get("ics"), identity=cfg.get("identity", ""))
     raise config_module.ConfigError(
-        "unknown backend %r; expected \"gws\" or \"eds\"" % backend
+        "unknown backend %r; expected \"gws\", \"eds\" or \"ics\"" % backend
     )
 
 
