@@ -195,10 +195,13 @@ Or by hand:
 Needs `python-icalendar` and `python-recurring-ical-events` (the setup installs
 them). Any https or webcal iCal feed works, not only Google's.
 
-The trade: no creating or editing events, Google refreshes the feed on its own
-schedule so a change can take a while to show up, and clicking an event opens
-nothing because the feed carries no link to it. Treat the address as a
-password; reset it in Google Calendar if it leaks.
+The trade: no creating or editing events, and Google refreshes the feed on its
+own schedule so a change can take a while to show up. The feed carries no link
+to an event, so for a Google feed the sync builds one from the event's UID and
+the calendar id in the address; an occurrence of a repeating event opens the
+series, and an event from any other feed opens nothing. Descriptions and
+pop-up reminders (`VALARM`) come through. Treat the address as a password;
+reset it in Google Calendar if it leaks.
 
 ## Sync without a Google Cloud project
 
@@ -317,9 +320,11 @@ These extra fields are optional. Omit them and everything still works:
 | Field | Effect |
 |---|---|
 | `meetingUrl` | Shows the **Join** button around the event's time. Must be `https`, anything else is dropped |
-| `eventUrl` | Clicking the row opens this. Must be `https` |
+| `eventUrl` | Opens the event in its calendar. Must be `https` |
 | `eventType` | `workingLocation` is hidden by default, `outOfOffice` is labelled |
 | `responseStatus` | `declined` is struck through, and can be hidden entirely |
+| `description` | Shown in the event details. Plain text only, never rendered as markup; the bundled sync strips HTML, decodes entities and caps it at 1500 characters |
+| `reminders` | List of whole minutes before the start, e.g. `[10, 60]`, at which to raise a desktop notification. `[]` or absent means none given. The bundled sync takes Google's pop-up reminders (the calendar's defaults when the event uses them) or an iCal feed's `DISPLAY`/`AUDIO` alarms counted from the start; e-mail reminders are left out |
 
 A top-level `writableCalendars` list (`id`, `name`, `color`) turns on the
 panel's edit buttons for those calendars. Only the bundled sync should write

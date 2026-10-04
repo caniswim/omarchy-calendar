@@ -8,24 +8,20 @@ testable without freezing time.
 import re
 from datetime import date, datetime, time, timedelta
 
+from .contract import is_https_url
+from .plaintext import description_text
+
 NO_TITLE = "(no title)"
 
 
 def _https_only(value):
-    """Keep a URL only if it is https.
+    """The URL if the widget may launch it, else blank.
 
-    Meeting links come from whoever sent the invitation, not from the user, so
-    anything else is dropped rather than handed to the widget to launch.
+    Links come from whoever sent the invitation, not from the user, so
+    anything else is dropped rather than handed to the widget.
     """
     text = str(value or "").strip()
-    if not text.startswith("https://"):
-        return ""
-    # Must match Model.safeUrl exactly. When the widget is stricter than the
-    # sync, a URL is written, then silently refused, and there is nothing to
-    # debug: no button, no error.
-    if any(char in text for char in ' \t\n"\'<>'):
-        return ""
-    return text
+    return text if is_https_url(text) else ""
 
 
 # Video links written into an event's text rather than attached as a
@@ -86,6 +82,39 @@ def _response_status(gevent):
     return ""
 
 
+def _popup_minutes(entries):
+    """Sorted unique minutes-before-start of the popup entries in `entries`.
+
+    Email reminders are left out: the widget can only raise a notification.
+    """
+    minutes = set()
+    for entry in entries or []:
+        if entry.get("method") != "popup":
+            continue
+        value = entry.get("minutes")
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            minutes.add(value)
+    return sorted(minutes)
+
+
+def _reminders(gevent, calendar):
+    """Minutes before the start at which the user wants a popup.
+
+    An event that follows its calendar's defaults says only useDefault; the
+    defaults themselves live on the calendar, so the backend hands them over
+    as the calendar's defaultReminders.
+    """
+    settings = gevent.get("reminders") or {}
+    if settings.get("useDefault"):
+        return _popup_minutes(calendar.get("defaultReminders"))
+    return _popup_minutes(settings.get("overrides"))
+
+
+def row_order(row):
+    """Sort key for contract rows: by day, then start, then title."""
+    return (row["dateKey"], row["start"], row["title"])
+
+
 def normalize_all(gevents, calendar, tz):
     """Normalize a list of Google events, flattening the per-day rows."""
     rows = []
@@ -115,17 +144,12 @@ def normalize_event(gevent, calendar, tz):
     except (KeyError, ValueError, TypeError):
         return []
 
+    # A zero-length timed event (end == start) is a legal marker; one that
+    # ends before it begins is not. An all-day end that is not after its
+    # start is kept, though: the API does return one-day markers that way,
+    # and Google Calendar shows them, so _covered_days gives them their day.
     if not all_day and end_dt < start_dt:
-        # A zero-length timed event (end == start) is a legal marker; one that
-        # ends before it begins is not.
         return []
-
-    # An all-day end.date is documented as exclusive and strictly after the
-    # start, but the API does hand back events that break that -- a one-day
-    # marker can arrive as start 2026-10-02, end 2026-10-02. Dropping those
-    # hid an event the user can see in Google Calendar, with nothing logged.
-    # _covered_days already clamps `last` up to `first`, which yields exactly
-    # the one day such an event occupies.
 
     title = (gevent.get("summary") or "").strip() or NO_TITLE
     location = gevent.get("location") or ""
@@ -136,6 +160,8 @@ def normalize_event(gevent, calendar, tz):
     event_url = _https_only(gevent.get("htmlLink"))
     event_type = str(gevent.get("eventType") or "")
     response_status = _response_status(gevent)
+    description = description_text(gevent.get("description"))
+    reminders = _reminders(gevent, calendar)
 
     return [
         {
@@ -153,6 +179,8 @@ def normalize_event(gevent, calendar, tz):
             "eventUrl": event_url,
             "eventType": event_type,
             "responseStatus": response_status,
+            "description": description,
+            "reminders": reminders,
         }
         for day in _covered_days(start_dt, end_dt, all_day)
     ]
