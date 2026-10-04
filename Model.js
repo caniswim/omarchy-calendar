@@ -554,12 +554,6 @@ function timeRange(event) {
   return { start: start, end: end }
 }
 
-// How long until an event starts, or null when it cannot be read.
-function millisUntil(event, nowMs) {
-  var start = timeRange(event).start
-  return isNaN(start) ? null : start - nowMs
-}
-
 // Where an agenda row sits relative to now: "past", "now" or "later".
 // All-day events are always "later" -- dimming a birthday at 00:01 would
 // say it is over when it is the whole day.
@@ -570,39 +564,6 @@ function eventPhase(event, nowMs) {
   if (range.end <= nowMs) return "past"
   if (range.start <= nowMs) return "now"
   return "later"
-}
-
-// All-day events are deliberately excluded. They start at midnight, so a
-// countdown to one either reads as hours in the past or as tomorrow, and
-// neither tells you anything you wanted to know.
-function nextEvent(events, nowMs) {
-  var best = null
-  var bestMs = null
-
-  for (var i = 0; i < (events || []).length; i++) {
-    var event = events[i]
-    if (!event || event.allDay) continue
-
-    var startMs = Date.parse(event.start)
-    if (isNaN(startMs) || startMs < nowMs) continue
-
-    if (bestMs === null || startMs < bestMs) {
-      bestMs = startMs
-      best = event
-    }
-  }
-
-  return best
-}
-
-// Scoped to today on purpose. Something eighteen hours out is tomorrow, and
-// answering "what is next" with tomorrow is noise when the day's agenda is
-// listed right below it.
-function nextEventToday(events, nowMs, todayKey) {
-  var todays = []
-  for (var i = 0; i < (events || []).length; i++)
-    if (events[i] && events[i].dateKey === todayKey) todays.push(events[i])
-  return nextEvent(todays, nowMs)
 }
 
 // The agenda row the "now" line is drawn above: the first timed event that
@@ -825,50 +786,6 @@ function relativeTime(event, nowMs, lang, long) {
   var ago = Math.max(1, Math.floor((nowMs - range.end) / MINUTE_MS))
   if (ago >= 60) ago = Math.floor(ago / 60) * 60
   return Strings.tr(lang, "rel.endedAgo", [spanText(ago, lang)])
-}
-
-// rowTimer and its two formatters predate relativeTime and are English
-// only; they go once the panel's agenda uses relativeTime.
-
-// The timer on an agenda row: time left in a meeting under way, or the
-// countdown on the next one. Every other row gets nothing -- one countdown
-// is a prompt, a column of them is a timetable.
-function rowTimer(event, next, nowMs) {
-  var phase = eventPhase(event, nowMs)
-  if (phase === "now") return formatRemaining(Date.parse(event.end) - nowMs) || ""
-  // By id, not identity: QML hands the agenda and the next-event lookup
-  // separate copies of the same row.
-  if (phase === "later" && event && next && event.id === next.id)
-    return formatCountdown(millisUntil(event, nowMs)) || ""
-  return ""
-}
-
-// Deliberately not symmetric with formatCountdown: "in 5min" and "5min left"
-// appear in the same slot, so they have to be told apart at a glance.
-function formatRemaining(deltaMs) {
-  if (deltaMs === null || isNaN(deltaMs) || deltaMs < 0 || deltaMs >= DAY_MS) return null
-  if (deltaMs < MINUTE_MS) return "ending"
-
-  var minutes = Math.floor(deltaMs / MINUTE_MS)
-  if (minutes < 60) return minutes + "min left"
-
-  var hours = Math.floor(minutes / 60)
-  var rest = minutes % 60
-  return rest === 0 ? hours + "h left" : hours + "h " + rest + "min left"
-}
-
-// Returns null past a day out, which is the caller's signal to show nothing
-// rather than a countdown nobody is acting on.
-function formatCountdown(deltaMs) {
-  if (deltaMs === null || isNaN(deltaMs) || deltaMs < 0 || deltaMs >= DAY_MS) return null
-  if (deltaMs < MINUTE_MS) return "now"
-
-  var minutes = Math.floor(deltaMs / MINUTE_MS)
-  if (minutes < 60) return "in " + minutes + "min"
-
-  var hours = Math.floor(minutes / 60)
-  var rest = minutes % 60
-  return rest === 0 ? "in " + hours + "h" : "in " + hours + "h " + rest + "min"
 }
 
 // ---- Bar label

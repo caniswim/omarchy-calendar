@@ -176,68 +176,6 @@ test('isCalendarHidden matches by id', () => {
 const NOW = Date.parse('2026-08-10T09:00:00-05:00')
 const at = (iso, extra = {}) => ({ id: iso, title: 'X', start: iso, allDay: false, ...extra })
 
-test('nextEvent picks the soonest future event', () => {
-  const events = [
-    at('2026-08-10T18:00:00-05:00', { title: 'Later' }),
-    at('2026-08-10T10:00:00-05:00', { title: 'Soon' }),
-    at('2026-08-10T08:00:00-05:00', { title: 'Past' })
-  ]
-  assert.equal(Model.nextEvent(events, NOW).title, 'Soon')
-})
-
-test('nextEvent ignores events already started', () => {
-  assert.equal(Model.nextEvent([at('2026-08-10T08:59:00-05:00')], NOW), null)
-})
-
-test('nextEvent ignores all-day events', () => {
-  const events = [at('2026-08-10T00:00:00-05:00', { allDay: true }), at('2026-08-10T23:00:00-05:00', { title: 'Real' })]
-  assert.equal(Model.nextEvent(events, NOW).title, 'Real')
-})
-
-test('nextEvent ignores unparseable starts', () => {
-  assert.equal(Model.nextEvent([at('not a date')], NOW), null)
-})
-
-test('nextEvent returns null on an empty or null list', () => {
-  assert.equal(Model.nextEvent([], NOW), null)
-  assert.equal(Model.nextEvent(null, NOW), null)
-})
-
-test('formatCountdown renders minutes, hours and now', () => {
-  assert.equal(Model.formatCountdown(30 * 1000), 'now')
-  assert.equal(Model.formatCountdown(10 * 60 * 1000), 'in 10min')
-  assert.equal(Model.formatCountdown(60 * 60 * 1000), 'in 1h')
-  assert.equal(Model.formatCountdown(72 * 60 * 1000), 'in 1h 12min')
-})
-
-test('formatCountdown gives up past a day and on bad input', () => {
-  assert.equal(Model.formatCountdown(25 * 60 * 60 * 1000), null)
-  assert.equal(Model.formatCountdown(-1), null)
-  assert.equal(Model.formatCountdown(null), null)
-  assert.equal(Model.formatCountdown(NaN), null)
-})
-
-test('millisUntil is null for an unreadable start', () => {
-  assert.equal(Model.millisUntil(at('nope'), NOW), null)
-  assert.equal(Model.millisUntil(null, NOW), null)
-})
-
-test('nextEventToday ignores events on other days', () => {
-  const events = [
-    at('2026-08-11T09:00:00-05:00', { title: 'Tomorrow' }),
-    at('2026-08-10T18:00:00-05:00', { title: 'Tonight' })
-  ]
-  events[0].dateKey = '2026-08-11'
-  events[1].dateKey = '2026-08-10'
-  assert.equal(Model.nextEventToday(events, NOW, '2026-08-10').title, 'Tonight')
-})
-
-test('nextEventToday returns null once the day is done', () => {
-  const tomorrow = at('2026-08-11T09:00:00-05:00')
-  tomorrow.dateKey = '2026-08-11'
-  assert.equal(Model.nextEventToday([tomorrow], NOW, '2026-08-10'), null)
-})
-
 test('truncateTitle only cuts what is too long', () => {
   assert.equal(Model.truncateTitle('Standup', 28), 'Standup')
   assert.equal(Model.truncateTitle('a'.repeat(40), 10), 'a'.repeat(9) + '…')
@@ -425,30 +363,6 @@ test('nowLineIndex sits above the first event not yet started', () => {
 test('nowLineIndex goes after the last row once the day is done', () => {
   assert.equal(Model.nowLineIndex(DAY, AT('2026-09-17T18:00:00+01:00')), 3)
   assert.equal(Model.nowLineIndex([], 0), 0)
-})
-
-test('rowTimer counts down to the next event only', () => {
-  const now = AT('2026-09-17T09:24:00+01:00')
-  assert.equal(Model.rowTimer(DAY[1], DAY[1], now), 'in 1h 6min')
-  assert.equal(Model.rowTimer(DAY[2], DAY[1], now), '')
-  assert.equal(Model.rowTimer(DAY[0], DAY[1], now), '')
-})
-
-test('rowTimer shows time left in a meeting under way, and nothing once past', () => {
-  assert.equal(Model.rowTimer(DAY[1], DAY[2], AT('2026-09-17T11:05:00+01:00')), '25min left')
-  assert.equal(Model.rowTimer(DAY[1], DAY[2], AT('2026-09-17T12:00:00+01:00')), '')
-})
-
-test('rowTimer matches the next event by id, not by reference', () => {
-  const copy = Object.assign({}, DAY[1])
-  assert.equal(Model.rowTimer(DAY[1], copy, AT('2026-09-17T09:24:00+01:00')), 'in 1h 6min')
-})
-
-test('formatRemaining reads as time left, distinct from a countdown', () => {
-  assert.equal(Model.formatRemaining(25 * 60 * 1000), '25min left')
-  assert.equal(Model.formatRemaining(90 * 60 * 1000), '1h 30min left')
-  assert.equal(Model.formatRemaining(30 * 1000), 'ending')
-  assert.equal(Model.formatRemaining(-1), null)
 })
 
 const ME_CAL = { id: 'me@example.com', name: 'Me', color: '#7bd148' }
