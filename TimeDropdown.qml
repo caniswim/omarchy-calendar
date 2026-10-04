@@ -25,7 +25,7 @@ Dropdown {
   options: Model.timeOptions(root.fromMinutes, function(value) {
     var minutes = Model.minutesOf(value)
     return new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60).toLocaleTimeString(root.timeLocale, root.timeFormat)
-  }, root.fromMinutes >= 0)
+  }, root.fromMinutes >= 0, root.language)
 
   onChanged: function(value) { root.chosen(value) }
 }
